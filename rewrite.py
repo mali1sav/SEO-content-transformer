@@ -66,10 +66,23 @@ with st.sidebar:
                 st.sidebar.error("Please enter an API Key")
 
 # Initialize OpenAI client with OpenRouter
-client = OpenAI(
-    base_url="https://openrouter.ai/api/v1",
-    api_key=saved_api_key or os.getenv("OPENROUTER_API_KEY"),
-)
+try:
+    api_key = saved_api_key or os.getenv("OPENROUTER_API_KEY")
+    if not api_key:
+        st.warning("Please enter your OpenRouter API key in the sidebar.")
+        client = None
+    else:
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+            headers={
+                "HTTP-Referer": "https://github.com/your-username/your-repo",  # Replace with your GitHub repo
+                "X-Title": "Content Transformer"  # Replace with your app name
+            }
+        )
+except Exception as e:
+    st.error(f"Error initializing OpenAI client: {str(e)}")
+    client = None
 
 # App Title
 st.title("Content Transformer")
@@ -228,11 +241,14 @@ def generate_prompt(
 
 def get_transformed_content(prompt):
     try:
+        if not client:
+            return "Please enter a valid API key in the settings."
+            
         if not (saved_api_key or os.getenv("OPENROUTER_API_KEY")):
             return "Please enter a valid API key in the settings."
             
         response = client.chat.completions.create(
-            model="openai/o1-mini-2024-09-12",
+            model="openai/gpt-4-0613",
             messages=[
                 {"role": "system", "content": "You are a professional content editor and translator specializing in creating well-structured, engaging content."},
                 {"role": "user", "content": prompt},
@@ -243,7 +259,8 @@ def get_transformed_content(prompt):
         transformed = response.choices[0].message.content.strip()
         return transformed
     except Exception as e:
-        return f"An error occurred: {e}"
+        st.error(f"Error in transformation: {str(e)}")
+        return "An error occurred during transformation. Please check your API key and try again."
 
 # Initialize session state for edited content
 if 'edited_content' not in st.session_state:
