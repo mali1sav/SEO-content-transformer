@@ -55,7 +55,7 @@ with st.sidebar:
             time.sleep(1)
             st.rerun()
     else:
-        api_key = st.sidebar.text_input("Enter OpenRouter API Key", type="password")
+        api_key = st.sidebar.text_input("Enter your OpenRouter API Key:", type="password")
         if st.sidebar.button("Save API Key"):
             if api_key:
                 save_api_key(api_key)
@@ -74,11 +74,7 @@ try:
     else:
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
-            api_key=api_key,
-            headers={
-                "HTTP-Referer": "https://github.com/your-username/your-repo",  # Replace with your GitHub repo
-                "X-Title": "Content Transformer"  # Replace with your app name
-            }
+            api_key=api_key
         )
 except Exception as e:
     st.error(f"Error initializing OpenAI client: {str(e)}")
@@ -244,17 +240,14 @@ def get_transformed_content(prompt):
         if not client:
             return "Please enter a valid API key in the settings."
             
-        if not (saved_api_key or os.getenv("OPENROUTER_API_KEY")):
-            return "Please enter a valid API key in the settings."
-            
         response = client.chat.completions.create(
-            model="openai/gpt-4-0613",
+            model="openai/o1-mini-2024-09-12",  # or any other OpenRouter model you prefer
             messages=[
                 {"role": "system", "content": "You are a professional content editor and translator specializing in creating well-structured, engaging content."},
                 {"role": "user", "content": prompt},
             ],
             temperature=0.7,
-            max_tokens=1500,
+            max_tokens=3000
         )
         transformed = response.choices[0].message.content.strip()
         return transformed
