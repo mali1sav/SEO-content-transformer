@@ -206,7 +206,7 @@ def generate_prompt(
     tone_mapping = {
         "Formal (Academic/Professional)": "Use formal language suitable for professional contexts. Use transliteration where appropriate.",
         "Semi-formal (Business)": "Use clear, professional language that's accessible but maintains authority. Use transliteration where appropriate.",
-        "Business Casual (Industry Blog)": "Use industry-appropriate language that's engaging but professional. Use transliteration where appropriate.",
+        "Business (Professional Blog)": "Use professional and relevant industry language related to the topic. Use transliteration where appropriate.",
         "Casual (General Audience)": "Use clear, simple language accessible to general readers. Use transliteration where appropriate.",
         "Authoritative (Expert Opinion)": "Use authoritative language that demonstrates expertise. Use transliteration where appropriate." 
     }
