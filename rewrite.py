@@ -8,74 +8,22 @@ import json
 from datetime import datetime, timedelta
 import time
 
-# Streamlit App Configuration
-st.set_page_config(
-    page_title="Content Transformer",
-    page_icon="✍️",
-    layout="wide",
-    initial_sidebar_state="expanded",
-)
-
 # Load environment variables
 load_dotenv()
 
-# Function to load API key from temporary storage
-def load_api_key():
-    try:
-        if os.path.exists('.temp_api_key.json'):
-            with open('.temp_api_key.json', 'r') as f:
-                data = json.load(f)
-                # Check if API key is still valid (within 48 hours)
-                if datetime.now().timestamp() - data['timestamp'] < 48 * 3600:
-                    return data['api_key']
-    except Exception:
-        pass
-    return None
+# Check for API keys at startup
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
-# Function to save API key with timestamp
-def save_api_key(api_key):
-    data = {
-        'api_key': api_key,
-        'timestamp': datetime.now().timestamp()
-    }
-    with open('.temp_api_key.json', 'w') as f:
-        json.dump(data, f)
-
-# API Key Management
-with st.sidebar:
-    st.sidebar.header("API Settings")
-    saved_api_key = load_api_key()
-    
-    if saved_api_key:
-        st.sidebar.success("API Key is saved and valid")
-        if st.sidebar.button("Clear API Key"):
-            if os.path.exists('.temp_api_key.json'):
-                os.remove('.temp_api_key.json')
-            st.sidebar.warning("API Key cleared. Please refresh the page.")
-            time.sleep(1)
-            st.rerun()
-    else:
-        api_key = st.sidebar.text_input("Enter your OpenRouter API Key:", type="password")
-        if st.sidebar.button("Save API Key"):
-            if api_key:
-                save_api_key(api_key)
-                st.sidebar.success("API Key saved successfully!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                st.sidebar.error("Please enter an API Key")
+if not OPENROUTER_API_KEY:
+    st.error("Please ensure OPENROUTER_API_KEY is set in your .env file")
+    st.stop()
 
 # Initialize OpenAI client with OpenRouter
 try:
-    api_key = saved_api_key or os.getenv("OPENROUTER_API_KEY")
-    if not api_key:
-        st.warning("Please enter your OpenRouter API key in the sidebar.")
-        client = None
-    else:
-        client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key
-        )
+    client = OpenAI(
+        base_url="https://openrouter.ai/api/v1",
+        api_key=OPENROUTER_API_KEY
+    )
 except Exception as e:
     st.error(f"Error initializing OpenAI client: {str(e)}")
     client = None
@@ -206,7 +154,7 @@ def generate_prompt(
     tone_mapping = {
         "Formal (Academic/Professional)": "Use formal language suitable for professional contexts. Use transliteration where appropriate.",
         "Semi-formal (Business)": "Use clear, professional language that's accessible but maintains authority. Use transliteration where appropriate.",
-        "Business (Professional Blog)": "Use professional and relevant industry language related to the topic. Use transliteration where appropriate.",
+        "Business (Industry Blog)": "Use relevant industry language that's engaging but professional. Use transliteration where appropriate.",
         "Casual (General Audience)": "Use clear, simple language accessible to general readers. Use transliteration where appropriate.",
         "Authoritative (Expert Opinion)": "Use authoritative language that demonstrates expertise. Use transliteration where appropriate." 
     }
