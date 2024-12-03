@@ -219,8 +219,8 @@ def get_transformed_content(prompt):
                 {"role": "system", "content": "You are a professional content editor and translator specializing in creating well-structured, engaging content."},
                 {"role": "user", "content": prompt},
             ],
-            temperature=0.7,
-            max_tokens=4000
+            temperature=0.9,
+            max_tokens=8000
         )
         transformed = response.choices[0].message.content.strip()
         return transformed
