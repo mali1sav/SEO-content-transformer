@@ -1,17 +1,12 @@
-# content_transformer_app.py
-
 import streamlit as st
-from openai import OpenAI  # Ensure this is the correct import based on your OpenAI client
+from openai import OpenAI
 import os
 from dotenv import load_dotenv
-import json
-from datetime import datetime, timedelta
-import time
 
 # Load environment variables
 load_dotenv()
 
-# Check for API keys at startup
+# Check for API key at startup
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 if not OPENROUTER_API_KEY:
@@ -22,7 +17,10 @@ if not OPENROUTER_API_KEY:
 try:
     client = OpenAI(
         base_url="https://openrouter.ai/api/v1",
-        api_key=OPENROUTER_API_KEY
+        api_key=OPENROUTER_API_KEY,
+        default_headers={
+            "HTTP-Referer": "https://openrouter.ai/",  # Required for OpenRouter
+        }
     )
 except Exception as e:
     st.error(f"Error initializing OpenAI client: {str(e)}")
@@ -31,235 +29,187 @@ except Exception as e:
 # App Title
 st.title("Content Transformer")
 
-# Sidebar for Inputs
-st.sidebar.header("Transformation Settings")
+# Default prompt template
+default_prompt = """You are an expert Thai technology journalist with extensive knowledge across crypto sector. Your task is to transform the provided content according to these specifications:
 
-# Content Structure Tab
-with st.sidebar.expander("📝 Content Structure", expanded=True):
-    content_type = st.selectbox(
-        "Format Style",
-        (
-            "Standard Article",
-            "Step-by-Step Guide",
-            "Pros and Cons Format",
-            "Comparison Format"
-        ),
-        index=1,
-        help="Choose how you want your content to be structured"
-    )
-    
-    length_option = st.selectbox(
-        "Length Adjustment",
-        (
-            "Keep Original Length",
-            "Make Shorter (50%)",
-            "Make Shorter (70%)",
-            "Make Longer (130%)",
-            "Make Longer (150%)",
-            "Make Longer (200%)"
-        ),
-        help="Adjust the length of your content"
-    )
+Content Transformation Goals:
+1. REWRITE the content completely while keeping the core information
+2. Use different sentence structures; vary between simple, compound, and complex sentences
+3. Reorganise paragraphs and information flow when possible while maintaining logical flow and keeping key points, all facts, statistics, and key information accurate
+4. Use synonyms and alternative expressions 
+5. Keep the same number of sections, paragraphs, lists, and similar paragraph lengths but transform EVERY sentence.
+6. Voice and Style is Semi-Professional
 
-# Language Style Tab
-with st.sidebar.expander("🎯 Language Style", expanded=True):
-    tone_style = st.selectbox(
-        "Tone",
-        (
-            "Formal",
-            "Semi-formal",
-            "Casual"
-        ),
-        index=1,
-        help="Choose the tone of voice for your content"
-    )
-    
-    writing_style = st.multiselect(
-        "Writing Enhancements",
-        [
-            "Sentence Restructuring",
-            "Word Variation",
-            "Improve Coherence"
-        ],
-        default=["Improve Coherence"],
-        help="Select writing enhancement options"
+Language-Specific Requirements:
+- Output must be in Thai language
+- Use natural Thai expressions rather than direct translations
+- Maintain Thai grammar language structure
+- Use English names for entities like people, city names, organisations, platform names
+- Use English for cryptocurrency names. For example, use 'Bitcoin' instead of 'บิทคอยน์', 'Ethereum' instead of 'อีเธอเรียม', 'Solana' instead of 'โซลาน่า', etc.
+- Integrate these keywords naturally: {keywords}
+
+Original Content:
+{content}
+"""
+
+# Initialize session states
+if 'prompt_template' not in st.session_state:
+    st.session_state.prompt_template = default_prompt
+
+# Prompt Template Editor (collapsed by default)
+with st.expander("✏️ Edit Prompt Template", expanded=False):
+    prompt_template = st.text_area(
+        "Prompt Template",
+        value=st.session_state.prompt_template,
+        height=400
     )
 
-# SEO Settings Tab
-with st.sidebar.expander("🎯 SEO Settings", expanded=True):
-    keywords = st.text_area(
-        "Target Keywords",
-        value="""ซื้อคริปโต
-ซื้อคริปโตตัวไหนดี
-ซื้อคริปโตที่ไหนดี
-ซื้อคริปโตยังไง
-""",
-        help="Enter keywords (one per line)\nFirst keyword = main keyword (used 2x)\nOther keywords (used 1x)",
-        height=100,
-    )
-
-# Content Input Area
-st.subheader("""Paste Your English or Thai Content Here. 
-**The output will always be Thai""")
-existing_content = st.text_area(
-    "Input Content",
-    value="""วิธีซื้อเหรียญคริปโตสำหรับมือใหม่ ในปี 2024
-
-การซื้อเหรียญคริปโตได้รับความสนใจจากนักลงทุนทั้งในสภาวะตลาดหมีและตลาดกระทิง เพราะคริปโตเป็นสินทรัพย์ที่มีความผันผวนสูงมากและสามารถทำการซื้อขายได้ตลอด 24 ชั่วโมง อย่างไรก็ตาม การลงทุนในสินทรัพย์ประเภทนี้อาจเป็นเรื่องยากสำหรับผู้เริ่มต้นเพราะมีวิธีการที่ค่อนข้างจะซับซ้อนจากสินทรัพย์ประเภทอื่น ๆ คู่มือนี้จะนำพาคุณได้เรียนรู้วิธีซื้อคริปโตอย่างละเอียดตั้งแต่วิธีการเปิดบัญชี วิธีการเก็บรักษาเหรียญคริปโต ความเสี่ยงในการลงทุน กลยุทธ์ในการลงทุน และขั้นตอนในการซื้อ
-
-การซื้อขายเหรียญคริปโตสำหรับมือใหม่
-
-หากคุณยังไม่มีประสบการณ์ในการลงทุนซื้อเหรียญคริปโตมาก่อน มีสิ่งสำคัญ 3 ประการที่คุณควรทราบก่อนเริ่มต้นการลงทุน
-
-คริปโตคืออะไร
-คริปโตหรือคริปโตเคอร์เรนซี่ (Cryptocurrency) คือสินทรัพย์ดิจิทัลที่ได้รับการออกแบบมาเพื่อเป็นตัวกลางในการแลกเปลี่ยนเช่นเดียวกับเงินสกุลทั่วไป เช่น บาท ปอนด์ และยูโร ปัจจุบันนี้มีคริปโตหลายสกุลเงิน เช่น Bitcoin, Ethereum, Ripple, Dodge และ Solona ซึ่งแต่ละสกุลเงินจะมีมูลค่าที่แตกต่างกัน บล็อกเชนธุรกรรมทั้งหมดจะถูกดำเนินการผ่านบล็อกเชน (Blockchain) ซึ่งไม่มีตัวกลางอย่างธนาคาร ส่งผลให้ธุรกรรมทั้งหมดจะไม่มีการถูกบันทึก ไม่สามารถตรวจสอบย้อนหลัง ปลอมแปลง และทำลายได้ การหาเหรียญคริปโตสามารถทำได้ในหลายวิธี เช่น การซื้อเหรียญคริปโต การเล่นเกม Play to Earn และการขุดเหรียญด้วยเครื่องมือ
-
-Rug Pull คืออะไร?
-
-Rug Pull แปลว่า ดึงพรม เป็นคำแสลงที่เอาไว้ใช้เรียกเหตุการณ์ราคาเหรียญตกต่ำอย่างรวดเร็วจนทำให้นักลงทุนเกิดภาวะ ‘ล้มทั้งยืน’ คล้ายกับการถูกดึงพรมออกจากเท้าอย่างรวดเร็ว
-
-เหตุการณ์นี้มักจะเกิดขึ้นในกรณีที่นักลงทุนได้ลงทุนซื้อเหรียญคริปโต จากนั้นถูกเจ้าของโครงการหรือนักพัฒนาเหรียญเทขายเหรียญทั้งหมดที่มีอยู่ในมือและนำเงินไป ส่งผลให้ราคาเหรียญตกต่ำอย่างรวดเร็ว
-
-รวมไปถึงนักลงทุนไม่สามารถขายเหรียญและนำเงินออกมาจากกระดานเทรดได้
-
-การเสนอขาย ICO ปลอม
-มิจฉาชีพหลอกลวงว่าเป็นนักพัฒนาโครงการหรือบริษัทและเสนอขายเหรียญ ICO ซึ่งเหรียญดังกล่าวไม่มีอยู่จริง ไม่ได้รับการรับรอง หรือไม่ถูกลิสต์บนกระดานเทรดใด ๆ เมื่อเหรียญได้ถูกจำหน่ายไปจำนวนหนึ่งแล้ว โครงการขายเหรียญได้ถูกปิดตัวลงและนักลงทุนถูกลอยแพไปพร้อมกับเหรียญที่ไม่มีมูลค่า
-
-การโจรกรรมข้อมูล
-นักลงทุนอาจถูกโจรกรรมข้อมูลต่าง ๆ เช่น ข้อมูลส่วนบุคคล ข้อมูลทางการเงิน และข้อมูลกุญแจสาธารณะด้วยกลโกงต่าง ๆ เช่น การขโมยผ่าน Malware เป็นต้น Malware เพื่อลดความเสี่ยงจากการลงทุนให้ได้มากที่สุด นักลงทุนควรศึกษาข้อมูลด้านความปลอดภัยและความเสี่ยงอย่างถี่ถ้วน
-""",
-    height=300,
+# Keywords Input
+st.subheader("Enter Keywords (one per line)")
+keywords = st.text_area(
+    "Keywords",
+    height=100,
+    help="Enter one keyword per line. These will be integrated naturally into the transformed content."
 )
 
-def generate_prompt(
-    content_type,
-    tone_style,
-    existing_content,
-    length_option,
-    keywords,
-    writing_style
-):
-    # Define mappings
-    format_mapping = {
-        "Standard Article": "Structure as a regular article with clear paragraphs and sections.",
-        "Step-by-Step Guide": "Present the information as numbered steps with clear instructions.",
-        "Pros and Cons Format": "Organize the content into clear Advantages and Disadvantages sections.",
-        "Comparison Format": "Structure the content to highlight key comparison points between options."
-    }
-
-    tone_mapping = {
-        "Formal": "Use formal language suitable for professional and academic contexts.",
-        "Semi-formal": "Use clear, professional language that's accessible while maintaining authority.",
-        "Casual": "Use simple, conversational language that's easy to understand."
-    }
-
-    prompt = f"""Transform this content into Thai with the following requirements:
-
-1. **Content Format:** {format_mapping[content_type]}
-   - Provide the output in plain text format without any markdown symbols (no #, *, -, etc.).
-   - Use clear paragraph breaks with double line spacing between sections.
-   - For headings, simply put them on their own line without any special formatting.
-
-2. **Tone:** {tone_mapping[tone_style]}
-
-3. **Writing Enhancements:**"""
-
-    if "Sentence Restructuring" in writing_style:
-        prompt += "\n- Vary sentence structure and convert between active/passive voice where appropriate."
-    if "Word Variation" in writing_style:
-        prompt += "\n- Use appropriate synonyms and varied vocabulary while maintaining meaning."
-    if "Improve Coherence" in writing_style:
-        prompt += "\n- Ensure smooth transitions and logical flow between sentences and paragraphs."
-
-    prompt += f"\n\n4. **Length:** "
-    if length_option == "Keep Original Length":
-        prompt += "Maintain the original word count of the content. The number of words in the transformed content should be as close as possible to the original without any reduction or expansion."
-    elif length_option == "Make Shorter (50%)":
-        prompt += "Reduce the content length by about 50% while maintaining key information."
-    elif length_option == "Make Shorter (70%)":
-        prompt += "Reduce the content length by about 30% while maintaining key information."
-    elif length_option == "Make Longer (130%)":
-        prompt += "Expand the content by about 30% with relevant details and examples."
-    elif length_option == "Make Longer (150%)":
-        prompt += "Expand the content by about 50% with relevant details and examples."
-    elif length_option == "Make Longer (200%)":
-        prompt += "Double the content length with relevant details, examples, and elaboration."
-
-    # Keywords Instructions
-    if keywords.strip():
-        keyword_list = [k.strip() for k in keywords.split('\n') if k.strip()]
-        if keyword_list:
-            prompt += "\n\n5. **SEO Keywords:**"
-            if len(keyword_list) > 0:
-                prompt += f"\n- **Main keyword (use 2 times):** {keyword_list[0]}"
-            if len(keyword_list) > 1:
-                prompt += f"\n- **Secondary keywords (use 1 time each):** {', '.join(keyword_list[1:])}"
-
-    prompt += f"""
-
-**Important:** 
-- Format the output as plain text without any markdown symbols or special formatting.
-- Use double line breaks between sections for clarity.
-
----
-
-**Original Content:**
-{existing_content}
-"""
-    return prompt
+# Content Input
+st.subheader("Paste Content to Transform")
+content = st.text_area(
+    "Content",
+    height=300,
+    help="Paste the content you want to transform here."
+)
 
 def get_transformed_content(prompt):
+    """Get transformed content from OpenAI"""
+    if not client:
+        st.error("OpenAI client is not properly initialized")
+        return None
+        
     try:
-        if not client:
-            return "Please enter a valid API key in the settings."
-            
         response = client.chat.completions.create(
-            model="openai/o1-mini-2024-09-12",  # or any other OpenRouter model you prefer
+            model="openai/gpt-4o-2024-11-20",  
             messages=[
-                {"role": "system", "content": "You are a professional content editor and translator specializing in creating well-structured, engaging content."},
-                {"role": "user", "content": prompt},
+                {"role": "system", "content": "You are an expert Thai technology journalist."},
+                {"role": "user", "content": prompt}
             ],
-            temperature=0.9,
-            max_tokens=8000
+            temperature=0.7,
+            max_tokens=4000
         )
-        transformed = response.choices[0].message.content.strip()
-        return transformed
+        
+        # Debug information (hidden by default)
+        with st.expander("Debug Information", expanded=False):
+            st.write("Debug - Response:", response)
+        
+        # Safely access response content
+        try:
+            if response and response.choices:
+                return response.choices[0].message.content
+            else:
+                st.error("No valid response content received")
+                return None
+        except AttributeError as ae:
+            st.error(f"Error accessing response content: {str(ae)}")
+            return None
+            
     except Exception as e:
-        st.error(f"Error in transformation: {str(e)}")
-        return "An error occurred during transformation. Please check your API key and try again."
+        st.error(f"Error during transformation: {str(e)}")
+        if hasattr(e, 'response'):
+            st.error(f"API Response: {e.response}")
+        return None
 
-# Initialize session state for edited content
-if 'edited_content' not in st.session_state:
-    st.session_state.edited_content = ""
-
-# Generate Button
-if st.button("✨ Generate Transformed Content"):
-    if not existing_content.strip():
-        st.warning("Please paste the content you want to transform.")
+# Transform Button
+if st.button("✨ Transform Content"):
+    if not content:
+        st.warning("Please paste some content to transform.")
     else:
-        with st.spinner("Transforming your content..."):
-            prompt = generate_prompt(
-                content_type,
-                tone_style,
-                existing_content,
-                length_option,
-                keywords,
-                writing_style
+        try:
+            # Prepare keywords
+            keyword_list = [k.strip() for k in keywords.split('\n') if k.strip()]
+            keywords_formatted = ", ".join(keyword_list)
+            
+            # Show the final prompt for debugging (hidden by default)
+            final_prompt = prompt_template.format(
+                keywords=keywords_formatted,
+                content=content
             )
-            transformed_content = get_transformed_content(prompt)
-            st.session_state.edited_content = transformed_content
-            st.subheader("Transformed Content")
-            st.text_area(
-                "Edit Transformed Content:",
-                value=transformed_content,
-                height=400,
-                key="editor"
-            )
-
-            # Option to Download Edited Content
-            st.download_button(
-                label="📥 Download Edited Content",
-                data=st.session_state.editor,
-                file_name="transformed_content.txt",
-                mime="text/plain",
-            )
+            
+            with st.expander("Debug - Final Prompt", expanded=False):
+                st.text(final_prompt)
+            
+            # Show progress
+            with st.spinner("Transforming content..."):
+                transformed_content = get_transformed_content(final_prompt)
+                
+            if transformed_content:
+                # Display content in HTML format
+                def format_content_to_html(content):
+                    # Split content into lines
+                    lines = content.split('\n')
+                    html_parts = []
+                    in_list = False
+                    
+                    for line in lines:
+                        line = line.strip()
+                        if not line:
+                            continue
+                            
+                        # Clean up the line content (remove ** and ---)
+                        def clean_content(text):
+                            # Remove ** markers
+                            text = text.replace('**', '')
+                            # Remove single - or multiple --- if they're not bullet points
+                            if not text.startswith(('- ', '* ')):
+                                text = text.replace('-', '')
+                            text = text.strip()
+                            return text
+                            
+                        # Handle headings
+                        if line.startswith('### '):
+                            html_parts.append(f'<h3>{clean_content(line[4:])}</h3>')
+                        elif line.startswith('## '):
+                            html_parts.append(f'<h2>{clean_content(line[3:])}</h2>')
+                        elif line.startswith('# '):
+                            html_parts.append(f'<h1>{clean_content(line[2:])}</h1>')
+                        # Handle numbered lists
+                        elif line.startswith(('1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')):
+                            if not in_list:
+                                html_parts.append('<ol>')
+                                in_list = True
+                            content = line[line.find(" ")+1:]
+                            html_parts.append(f'<li>{clean_content(content)}</li>')
+                        # Handle bullet points
+                        elif line.startswith(('- ', '* ')):
+                            if not in_list:
+                                html_parts.append('<ul>')
+                                in_list = True
+                            html_parts.append(f'<li>{clean_content(line[2:])}</li>')
+                        else:
+                            if in_list:
+                                html_parts.append('</ol>' if html_parts[-2].startswith('<ol') else '</ul>')
+                                in_list = False
+                            html_parts.append(f'<p>{clean_content(line)}</p>')
+                    
+                    if in_list:
+                        html_parts.append('</ol>' if html_parts[-2].startswith('<ol') else '</ul>')
+                    
+                    return '\n'.join(html_parts)
+                
+                formatted_html = format_content_to_html(transformed_content)
+                html_content = f"""
+                    <div style="background-color: white; padding: 20px; border-radius: 5px; border: 1px solid #ddd; line-height: 1.6;">
+                        <style>
+                            h1 {{ font-size: 24px; margin-bottom: 20px; color: #333; }}
+                            h2 {{ font-size: 20px; margin: 20px 0 15px; color: #444; }}
+                            h3 {{ font-size: 18px; margin: 15px 0 10px; color: #555; }}
+                            p {{ margin: 10px 0; color: #666; }}
+                            ul, ol {{ margin: 10px 0; padding-left: 25px; }}
+                            li {{ margin: 5px 0; color: #666; }}
+                        </style>
+                        {formatted_html}
+                    </div>
+                """
+                st.markdown(html_content, unsafe_allow_html=True)
+                
+        except Exception as e:
+            st.error(f"Error processing content: {str(e)}")
